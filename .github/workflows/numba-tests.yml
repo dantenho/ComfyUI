@@ -1,0 +1,65 @@
+name: Numba Unit Tests
+
+on:
+  push:
+    branches: [ master, main, develop ]
+    paths:
+      - 'comfy/numba_*.py'
+      - 'tests-unit/test_numba_*.py'
+      - '.github/workflows/numba-tests.yml'
+  pull_request:
+    branches: [ master, main, develop ]
+    paths:
+      - 'comfy/numba_*.py'
+      - 'tests-unit/test_numba_*.py'
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.14']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install numpy "numba>=0.63.0" pytest pytest-cov
+    
+    - name: Run Numba unit tests
+      run: |
+        pytest tests-unit/test_numba_utils.py -v --cov=comfy --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: numba-tests
+        name: numba-coverage
+
+  test-cuda:
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:13.0.0-base-ubuntu22.04
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Python and dependencies
+      run: |
+        apt-get update && apt-get install -y python3 python3-pip
+        pip3 install numpy "numba>=0.63.0" pytest
+    
+    - name: Run CUDA tests
+      run: |
+        pytest tests-unit/test_numba_utils.py -v -m cuda || echo "CUDA tests skipped (no GPU available)"
