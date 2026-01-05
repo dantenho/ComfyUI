@@ -1,0 +1,121 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    name: Documentation Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Check documentation files exist
+        run: |
+          echo "Checking required documentation files..."
+          
+          files=(
+            "README.md"
+            "CUDA13_MIGRATION.md"
+            "UPDATE_SUMMARY.md"
+            "QUICK_REFERENCE.md"
+          )
+          
+          for file in "${files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists"
+            else
+              echo "✗ $file missing"
+              exit 1
+            fi
+          done
+
+      - name: Check README links
+        run: |
+          pip install markdown-link-check || npm install -g markdown-link-check || true
+          find . -name "*.md" -exec markdown-link-check {} \; || true
+
+      - name: Validate YAML files
+        run: |
+          pip install pyyaml
+          python -c "
+          import yaml
+          import sys
+          from pathlib import Path
+          
+          yaml_files = list(Path('.github/workflows').glob('*.yml'))
+          for f in yaml_files:
+              try:
+                  with open(f) as file:
+                      yaml.safe_load(file)
+                  print(f'✓ {f.name} is valid YAML')
+              except Exception as e:
+                  print(f'✗ {f.name} has errors: {e}')
+                  sys.exit(1)
+          "
+
+      - name: Generate API documentation
+        run: |
+          pip install pdoc3 || true
+          pdoc --html --output-dir docs/ comfy/ || echo "API documentation generation skipped"
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: documentation
+          path: docs/
+          retention-days: 30
+
+  migration-guide-check:
+    runs-on: ubuntu-latest
+    name: Migration Guide Validation
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate migration documentation
+        run: |
+          echo "Checking migration guide completeness..."
+          
+          # Check CUDA13_MIGRATION.md
+          if grep -q "Python 3.14" CUDA13_MIGRATION.md; then
+            echo "✓ Python 3.14 documentation present"
+          else
+            echo "⚠ Python 3.14 documentation missing"
+          fi
+          
+          if grep -q "CUDA 13" CUDA13_MIGRATION.md; then
+            echo "✓ CUDA 13.x documentation present"
+          else
+            echo "⚠ CUDA 13.x documentation missing"
+          fi
+          
+          if grep -q "CCCL 3" CUDA13_MIGRATION.md; then
+            echo "✓ CCCL 3.x documentation present"
+          else
+            echo "⚠ CCCL 3.x documentation missing"
+          fi
+
+      - name: Check ChromaDB documentation
+        run: |
+          python -c "
+          print('Verifying ChromaDB documentation storage...')
+          try:
+              import chromadb
+              print('✓ ChromaDB package available')
+          except ImportError:
+              print('⚠ ChromaDB not installed')
+          " || true

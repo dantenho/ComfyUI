@@ -15,6 +15,17 @@ from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
+# Python 3.14: Set multiprocessing start method to 'spawn' for cross-platform compatibility
+# Unix platforms (except macOS) now default to 'forkserver' instead of 'fork'
+import multiprocessing
+if __name__ == "__main__":
+    try:
+        # Set to 'spawn' for consistent behavior across platforms
+        # 'fork' can cause issues with CUDA contexts
+        multiprocessing.set_start_method('spawn', force=False)
+    except RuntimeError:
+        # Start method already set
+        pass
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.

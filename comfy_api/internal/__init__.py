@@ -140,7 +140,8 @@ def make_locked_method_func(type_obj, func, class_clone):
     method = getattr(type_obj, func).__func__
 
     # Check if the original method is async
-    if asyncio.iscoroutinefunction(method):
+    # Python 3.14: Use inspect.iscoroutinefunction instead of asyncio.iscoroutinefunction (deprecated)
+    if inspect.iscoroutinefunction(method):
         async def wrapped_async_func(**inputs):
             return await method(locked_class, **inputs)
         return wrapped_async_func

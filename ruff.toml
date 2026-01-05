@@ -1,0 +1,128 @@
+# Ruff configuration for ComfyUI
+# Python 3.14+ and CUDA 13.x compatible
+
+# Ruff documentation: https://docs.astral.sh/ruff/
+
+[tool.ruff]
+# Target Python 3.14
+target-version = "py314"
+
+# Line length
+line-length = 120
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".github",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "*.egg-info",
+    "build",
+    "dist",
+    "node_modules",
+    "output",
+    "temp",
+    "input",
+    "models",
+    "custom_nodes",
+    "*.ipynb",
+    "**/generated/*.pyi",
+]
+
+[tool.ruff.lint]
+# Enable specific rule sets
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # Pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "YTT",   # flake8-2020
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "T10",   # flake8-debugger
+    "EXE",   # flake8-executable
+    "ISC",   # flake8-implicit-str-concat
+    "ICN",   # flake8-import-conventions
+    "PIE",   # flake8-pie
+    "T20",   # flake8-print
+    "PYI",   # flake8-pyi
+    "PT",    # flake8-pytest-style
+    "Q",     # flake8-quotes
+    "RSE",   # flake8-raise
+    "RET",   # flake8-return
+    "SIM",   # flake8-simplify
+    "TID",   # flake8-tidy-imports
+    "TCH",   # flake8-type-checking
+    "ARG",   # flake8-unused-arguments
+    "PTH",   # flake8-use-pathlib
+    "ERA",   # eradicate
+    "PL",    # Pylint
+    "TRY",   # tryceratops
+    "NPY",   # NumPy-specific rules
+    "RUF",   # Ruff-specific rules
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",   # line-too-long (handled by formatter)
+    "E722",   # bare-except
+    "E731",   # lambda-assignment
+    "E712",   # comparison-to-bool
+    "E402",   # module-level-import-not-at-top-of-file
+    "E741",   # ambiguous-variable-name
+    "N805",   # invalid-first-argument-name-for-method
+    "B008",   # function-call-in-default-argument
+    "B905",   # zip-without-explicit-strict
+    "C901",   # complex-structure
+    "PLR0911", # too-many-return-statements
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLR2004", # magic-value-comparison
+    "TRY003",  # raise-vanilla-args
+    "TRY400",  # error-instead-of-exception
+]
+
+# Allow autofix for specific rules
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when prefixed with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]  # Allow unused imports in __init__.py
+"tests/**/*.py" = ["PLR2004", "S101", "S311"]  # Allow magic values and assert in tests
+"tests-unit/**/*.py" = ["PLR2004", "S101", "S311"]
+"script_examples/**/*.py" = ["T201", "T203"]  # Allow print in examples
+
+[tool.ruff.lint.isort]
+known-first-party = ["comfy", "comfy_api", "comfy_execution", "comfy_extras"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Use line breaks after binary operators
+skip-magic-trailing-comma = false
+
+# Automatically detect line ending
+line-ending = "auto"
+
+# Prefer single-line docstrings
+docstring-code-format = true
+docstring-code-line-length = 88

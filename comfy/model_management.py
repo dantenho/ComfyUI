@@ -16,6 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+# CUDA 13.x Note: Some cudaDeviceProperties fields have been removed:
+# - clockRate, deviceOverlap, kernelExecTimeoutEnabled, computeMode, maxTexture1DLinear
+# - memoryClockRate, singleToDoublePrecisionPerfRatio, cooperativeMultiDeviceLaunch
+# Use torch.cuda.get_device_properties() for remaining properties or
+# cudaDeviceGetAttribute() with specific attributes for removed fields.
+
 import psutil
 import logging
 from enum import Enum

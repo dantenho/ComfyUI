@@ -1,0 +1,149 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+jobs:
+  ruff-format:
+    runs-on: ubuntu-latest
+    name: Ruff Format Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Check formatting
+        run: |
+          ruff format --check --diff .
+
+  ruff-lint:
+    runs-on: ubuntu-latest
+    name: Ruff Lint Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff linter
+        run: |
+          ruff check . --output-format=github
+
+  type-check:
+    runs-on: ubuntu-latest
+    name: Type Checking with mypy
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install mypy types-pyyaml types-requests
+          pip install -r requirements.txt
+
+      - name: Run mypy
+        run: |
+          mypy . --ignore-missing-imports --no-strict-optional || true
+
+  security-check:
+    runs-on: ubuntu-latest
+    name: Security Check with Bandit
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit security check
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f txt || true
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
+          retention-days: 30
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    name: Check Dependencies
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Check for vulnerabilities
+        run: |
+          pip install -r requirements.txt
+          pip-audit || true
+
+  complexity-check:
+    runs-on: ubuntu-latest
+    name: Code Complexity Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install radon
+        run: pip install radon
+
+      - name: Check cyclomatic complexity
+        run: |
+          radon cc . -a -nc
+
+      - name: Check maintainability index
+        run: |
+          radon mi . -nc

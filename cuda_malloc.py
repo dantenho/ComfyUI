@@ -3,7 +3,9 @@ import importlib.util
 from comfy.cli_args import args, PerformanceFeature
 import subprocess
 
-#Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
+# CUDA 13.x Note: Requires driver >= 580 and drops support for compute capability < 7.5
+# (Maxwell, Pascal, Volta architectures no longer supported)
+# Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
     if os.name == 'nt':
         import ctypes
@@ -42,12 +44,19 @@ def get_gpu_names():
                 gpu_names.add(l.decode('utf-8').split(' (UUID')[0])
         return gpu_names
 
+# CUDA 13.x: Expanded blacklist to include all GPUs with compute capability < 7.5
+# Maxwell (5.x), Pascal (6.x), and Volta (7.0) architectures are no longer supported
 blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeForce GTX 960", "GeForce GTX 950", "GeForce 945M",
                 "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M", "GeForce GTX 750", "GeForce GTX 745", "Quadro K620",
                 "Quadro K1200", "Quadro K2200", "Quadro M500", "Quadro M520", "Quadro M600", "Quadro M620", "Quadro M1000",
                 "Quadro M1200", "Quadro M2000", "Quadro M2200", "Quadro M3000", "Quadro M4000", "Quadro M5000", "Quadro M5500", "Quadro M6000",
                 "GeForce MX110", "GeForce MX130", "GeForce 830M", "GeForce 840M", "GeForce GTX 850M", "GeForce GTX 860M",
-                "GeForce GTX 1650", "GeForce GTX 1630", "Tesla M4", "Tesla M6", "Tesla M10", "Tesla M40", "Tesla M60"
+                "GeForce GTX 1650", "GeForce GTX 1630", "Tesla M4", "Tesla M6", "Tesla M10", "Tesla M40", "Tesla M60",
+                # Pascal (6.x) - no longer supported in CUDA 13.x
+                "GeForce GTX 1080 Ti", "GeForce GTX 1080", "GeForce GTX 1070", "GeForce GTX 1060", "GeForce GTX 1050",
+                "GeForce GT 1030", "Tesla P100", "Tesla P40", "Tesla P4", "Quadro P6000", "Quadro P5000", "Quadro P4000",
+                # Volta (7.0) - no longer supported in CUDA 13.x
+                "Tesla V100", "Titan V", "Quadro GV100"
                 }
 
 def cuda_malloc_supported():
@@ -89,9 +98,11 @@ if not args.cuda_malloc:
 if args.cuda_malloc and not args.disable_cuda_malloc:
     env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
     if env_var is None:
-        env_var = "backend:cudaMallocAsync"
+        # CUDA 13.x: Use modern memory resource patterns with single-phase APIs
+        # backend:cudaMallocAsync is still supported but single-phase patterns recommended
+        env_var = "backend:cudaMallocAsync,memory_pool:device"
     else:
-        env_var += ",backend:cudaMallocAsync"
+        env_var += ",backend:cudaMallocAsync,memory_pool:device"
 
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
 

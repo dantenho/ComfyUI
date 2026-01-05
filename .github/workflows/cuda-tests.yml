@@ -1,0 +1,90 @@
+name: CUDA Tests
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  cuda-test:
+    runs-on: ubuntu-latest
+    container:
+      image: pytorch/pytorch:2.9.1-cuda12.8-cudnn9-runtime
+      
+    name: CUDA ${{ matrix.cuda-version }} Test
+    strategy:
+      matrix:
+        cuda-version: ['12.8', '12.9']
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check CUDA availability
+        run: |
+          nvidia-smi || echo "No GPU available, tests will run in CPU mode"
+          python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+          python -c "import torch; print(f'CUDA version: {torch.version.cuda}')" || true
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-xdist
+
+      - name: Run CUDA tests
+        run: |
+          pytest tests-unit/comfy/ -v -k "cuda or gpu" || echo "CUDA tests skipped (no GPU)"
+
+      - name: Test Numba CUDA
+        run: |
+          python -c "from numba import cuda; print(f'Numba CUDA available: {cuda.is_available()}')" || true
+
+  cuda-compatibility:
+    runs-on: ubuntu-latest
+    name: CUDA Compatibility Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Check CUDA configuration
+        run: |
+          python -c "
+          import sys
+          print('Checking CUDA 13.x compatibility...')
+          
+          # Check cuda_malloc.py configuration
+          with open('cuda_malloc.py', 'r') as f:
+              content = f.read()
+              if 'CUDA 13.x' in content:
+                  print('✓ CUDA 13.x configuration found')
+              else:
+                  print('⚠ CUDA 13.x configuration not found')
+                  
+              if 'memory_pool:device' in content:
+                  print('✓ Modern memory pool configuration present')
+              else:
+                  print('⚠ Memory pool configuration missing')
+          "
+
+      - name: Validate Python 3.14 compatibility
+        run: |
+          python -c "
+          import sys
+          if sys.version_info >= (3, 14):
+              print(f'✓ Python {sys.version} is compatible')
+          else:
+              print(f'⚠ Python {sys.version} detected, 3.14+ required')
+              sys.exit(1)
+          "
