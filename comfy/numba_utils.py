@@ -61,7 +61,12 @@ def denormalize_image_array(img_array, scale=255.0):
         for w in range(width):
             for c in range(channels):
                 val = img_array[h, w, c] * scale
-                result[h, w, c] = np.clip(val, 0, 255)
+                # Manual clipping for Numba compatibility with scalars
+                if val < 0.0:
+                    val = 0.0
+                elif val > 255.0:
+                    val = 255.0
+                result[h, w, c] = np.uint8(val)
     
     return result
 
@@ -230,20 +235,20 @@ def fast_clip_array(arr, min_val=0.0, max_val=1.0):
     Returns:
         Clipped array
     """
-    result = np.empty_like(arr)
+    shape = arr.shape
     flat = arr.flatten()
-    result_flat = result.flatten()
+    result = np.empty(len(flat), dtype=arr.dtype)
     
     for i in prange(len(flat)):
         val = flat[i]
         if val < min_val:
-            result_flat[i] = min_val
+            result[i] = min_val
         elif val > max_val:
-            result_flat[i] = max_val
+            result[i] = max_val
         else:
-            result_flat[i] = val
+            result[i] = val
     
-    return result.reshape(arr.shape)
+    return result.reshape(shape)
 
 
 @njit(parallel=True, cache=True, fastmath=True)
@@ -256,15 +261,15 @@ def fast_array_multiply_add(a, b, scale_a=1.0, scale_b=1.0):
     Returns:
         Result array
     """
-    result = np.empty_like(a)
+    shape = a.shape
     flat_a = a.flatten()
     flat_b = b.flatten()
-    result_flat = result.flatten()
+    result = np.empty(len(flat_a), dtype=a.dtype)
     
     for i in prange(len(flat_a)):
-        result_flat[i] = scale_a * flat_a[i] + scale_b * flat_b[i]
+        result[i] = scale_a * flat_a[i] + scale_b * flat_b[i]
     
-    return result.reshape(a.shape)
+    return result.reshape(shape)
 
 
 # =============================================================================
