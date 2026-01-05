@@ -32,6 +32,13 @@ from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
 from comfy_api.latest import io, ComfyExtension
 
+# Import Numba-optimized functions
+try:
+    from comfy.numba_utils import normalize_image_array
+    NUMBA_AVAILABLE = True
+except ImportError:
+    NUMBA_AVAILABLE = False
+
 import comfy.clip_vision
 
 import comfy.model_management

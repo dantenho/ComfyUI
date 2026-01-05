@@ -9,6 +9,13 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 from comfy_extras.nodes_wan import parse_json_tracks
 
+# Import Numba-optimized functions
+try:
+    from comfy.numba_utils import alpha_composite as numba_alpha_composite
+    NUMBA_AVAILABLE = True
+except ImportError:
+    NUMBA_AVAILABLE = False
+
 # https://github.com/ali-vilab/Wan-Move/blob/main/wan/modules/trajectory.py
 from PIL import Image, ImageDraw
 
@@ -177,7 +184,14 @@ def add_weighted(rgb, track):
 
     alpha = track[:, :, 3] / 255.0
     alpha = np.stack([alpha] * 3, axis=-1)
-    blend_img = track[:, :, :3] * alpha + rgb * (1 - alpha)
+    
+    # Use Numba-optimized alpha compositing if available
+    if NUMBA_AVAILABLE:
+        blend_img = numba_alpha_composite(rgb.astype(np.float32), 
+                                         track[:, :, :3].astype(np.float32), 
+                                         alpha.astype(np.float32))
+    else:
+        blend_img = track[:, :, :3] * alpha + rgb * (1 - alpha)
 
     return Image.fromarray(blend_img.astype(np.uint8))
 

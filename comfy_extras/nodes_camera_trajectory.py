@@ -124,19 +124,24 @@ def ray_condition(K, c2w, H, W, device):
 def get_camera_motion(angle, T, speed, n=81):
     def compute_R_form_rad_angle(angles):
         theta_x, theta_y, theta_z = angles
-        Rx = np.array([[1, 0, 0],
-                    [0, np.cos(theta_x), -np.sin(theta_x)],
-                    [0, np.sin(theta_x), np.cos(theta_x)]])
+        
+        # Use Numba-optimized rotation matrix if available
+        if NUMBA_AVAILABLE:
+            R = combined_rotation_matrix(theta_x, theta_y, theta_z)
+        else:
+            Rx = np.array([[1, 0, 0],
+                        [0, np.cos(theta_x), -np.sin(theta_x)],
+                        [0, np.sin(theta_x), np.cos(theta_x)]])
 
-        Ry = np.array([[np.cos(theta_y), 0, np.sin(theta_y)],
-                    [0, 1, 0],
-                    [-np.sin(theta_y), 0, np.cos(theta_y)]])
+            Ry = np.array([[np.cos(theta_y), 0, np.sin(theta_y)],
+                        [0, 1, 0],
+                        [-np.sin(theta_y), 0, np.cos(theta_y)]])
 
-        Rz = np.array([[np.cos(theta_z), -np.sin(theta_z), 0],
-                    [np.sin(theta_z), np.cos(theta_z), 0],
-                    [0, 0, 1]])
+            Rz = np.array([[np.cos(theta_z), -np.sin(theta_z), 0],
+                        [np.sin(theta_z), np.cos(theta_z), 0],
+                        [0, 0, 1]])
 
-        R = np.dot(Rz, np.dot(Ry, Rx))
+            R = np.dot(Rz, np.dot(Ry, Rx))
         return R
     RT = []
     for i in range(n):
