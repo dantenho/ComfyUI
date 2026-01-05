@@ -8,6 +8,14 @@ from PIL import Image
 from typing_extensions import override
 
 import folder_paths
+
+# Numba optimization imports
+try:
+    from comfy.numba_utils import denormalize_image_array
+    from comfy.numba_error_handler import check_numba_availability
+    NUMBA_AVAILABLE = check_numba_availability()
+except ImportError:
+    NUMBA_AVAILABLE = False
 import node_helpers
 from comfy_api.latest import ComfyExtension, io
 
@@ -185,7 +193,15 @@ def save_images_to_folder(image_list, output_dir, prefix="image"):
 
             # Convert to numpy and scale to 0-255
             img_array = img_tensor.cpu().numpy()
-            img_array = np.clip(img_array * 255.0, 0, 255).astype(np.uint8)
+            
+            # Use Numba-optimized denormalization if available
+            if NUMBA_AVAILABLE and img_array.ndim == 3:
+                # Normalize to [0,1] first if not already
+                if img_array.max() > 1.0:
+                    img_array = img_array / img_array.max()
+                img_array = denormalize_image_array(img_array.astype(np.float32), scale=255.0)
+            else:
+                img_array = np.clip(img_array * 255.0, 0, 255).astype(np.uint8)
 
             # Convert to PIL Image
             img = Image.fromarray(img_array)

@@ -21,6 +21,14 @@ import safetensors.torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
+# Numba optimization imports
+try:
+    from comfy.numba_utils import normalize_image_array, denormalize_image_array
+    from comfy.numba_error_handler import check_numba_availability
+    NUMBA_AVAILABLE = check_numba_availability()
+except ImportError:
+    NUMBA_AVAILABLE = False
+
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -1611,7 +1619,16 @@ class SaveImage:
         results = list()
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            # Use Numba-optimized denormalization if available
+            if NUMBA_AVAILABLE and i.ndim == 3 and i.max() <= 255.0:
+                # Normalize to [0,1] if needed
+                if i.max() > 1.0:
+                    i = i / 255.0
+                    img = Image.fromarray(denormalize_image_array(i.astype(np.float32), scale=255.0))
+                else:
+                    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            else:
+                img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
             if not args.disable_metadata:
                 metadata = PngInfo()
@@ -1684,8 +1701,14 @@ class LoadImage:
             if image.size[0] != w or image.size[1] != h:
                 continue
 
-            image = np.array(image).astype(np.float32) / 255.0
-            image = torch.from_numpy(image)[None,]
+            # Use Numba-optimized normalization if available
+            image_np = np.array(image)
+            if NUMBA_AVAILABLE and image_np.ndim == 3:
+                image = normalize_image_array(image_np.astype(np.uint8))
+                image = torch.from_numpy(image)[None,]
+            else:
+                image = np.array(image).astype(np.float32) / 255.0
+                image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
                 mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                 mask = 1. - torch.from_numpy(mask)

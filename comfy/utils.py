@@ -25,6 +25,14 @@ import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
+
+# Numba optimization imports
+try:
+    from comfy.numba_utils import normalize_image_array, denormalize_image_array
+    from comfy.numba_error_handler import check_numba_availability
+    NUMBA_AVAILABLE = check_numba_availability()
+except ImportError:
+    NUMBA_AVAILABLE = False
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
@@ -928,9 +936,38 @@ def bislerp(samples, width, height):
     return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
-    images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    # Use Numba-optimized denormalization if available
+    if NUMBA_AVAILABLE:
+        # Denormalize with Numba
+        images = []
+        for image in samples:
+            img_data = image.movedim(0, -1).cpu().numpy()
+            if img_data.ndim == 3:
+                # Normalize to [0,1] if needed
+                if img_data.max() > 1.0:
+                    img_data = img_data / img_data.max()
+                img_uint8 = denormalize_image_array(img_data.astype(np.float32), scale=255.0)
+                images.append(Image.fromarray(img_uint8))
+            else:
+                images.append(Image.fromarray(np.clip(255. * img_data, 0, 255).astype(np.uint8)))
+    else:
+        images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
-    images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
+    
+    # Use Numba-optimized normalization if available
+    if NUMBA_AVAILABLE:
+        images = []
+        for img in [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]]:
+            img_array = np.array(img)
+            if img_array.ndim == 3:
+                normalized = normalize_image_array(img_array.astype(np.uint8))
+                images.append(torch.from_numpy(normalized).movedim(-1, 0))
+            else:
+                images.append(torch.from_numpy(np.array(img).astype(np.float32) / 255.0).movedim(-1, 0))
+    else:
+        images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
+    
     result = torch.stack(images)
     return result.to(samples.device, samples.dtype)
 

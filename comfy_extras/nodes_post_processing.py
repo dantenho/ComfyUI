@@ -126,7 +126,7 @@ class Quantize(io.ComfyNode):
     def bayer(im, pal_im, order):
         def normalized_bayer_matrix(n):
             if n == 0:
-                return np.zeros((1,1), "float32")
+                return np.zeros((1, 1), dtype=np.float32)
             else:
                 q = 4 ** n
                 m = q * normalized_bayer_matrix(n - 1)
