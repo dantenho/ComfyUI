@@ -1,0 +1,28 @@
+# Prometheus Configuration
+# For use with: docker-compose -f docker-compose.observability.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'comfyui'
+
+scrape_configs:
+  - job_name: 'comfyui-numba'
+    static_configs:
+      - targets: ['localhost:8000']  # Metrics HTTP server
+        labels:
+          instance: 'numba-operations'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Alert rules
+rule_files:
+  # - "alert_rules.yml"

@@ -1,0 +1,21 @@
+# Optional observability dependencies for ComfyUI
+# Install with: pip install -r requirements-observability.txt
+
+# OpenTelemetry - distributed tracing
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-exporter-jaeger>=1.21.0
+opentelemetry-instrumentation>=0.42b0
+
+# Prometheus - metrics collection
+prometheus-client>=0.19.0
+
+# Optional: Additional exporters
+# opentelemetry-exporter-prometheus>=0.42b0  # For better Prometheus integration
+# opentelemetry-exporter-gcp-monitoring>=0.42b0  # For Google Cloud
+# opentelemetry-exporter-datadog>=0.42b0  # For Datadog
+# opentelemetry-exporter-otlp>=0.42b0  # For OTLP collectors
+
+# Optional: For performance analysis
+pandas>=2.0.0
+matplotlib>=3.7.0

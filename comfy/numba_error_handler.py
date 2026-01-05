@@ -10,9 +10,32 @@ import traceback
 import numpy as np
 from typing import Callable, Any, Optional
 import warnings
+import time
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Import observability modules (optional)
+try:
+    from comfy.tracing import get_tracer, NumbaTracer
+    TRACING_AVAILABLE = True
+except ImportError:
+    TRACING_AVAILABLE = False
+    NumbaTracer = None
+
+try:
+    from comfy.metrics import get_metrics_collector, MetricsCollector
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+    MetricsCollector = None
+
+try:
+    from comfy.performance_logger import get_performance_logger, PerformanceLogger
+    PERF_LOGGING_AVAILABLE = True
+except ImportError:
+    PERF_LOGGING_AVAILABLE = False
+    PerformanceLogger = None
 
 
 class NumbaExecutionError(Exception):
@@ -27,30 +50,89 @@ class NumbaFallbackWarning(UserWarning):
 
 def numba_safe_wrapper(fallback_func: Optional[Callable] = None, 
                        function_name: str = "unknown",
-                       silent: bool = False):
+                       operation_name: str = "unknown",
+                       silent: bool = False,
+                       enable_tracing: bool = True,
+                       enable_metrics: bool = True,
+                       enable_perf_logging: bool = True):
     """
     Decorator for safe Numba function execution with automatic fallback.
+    Integrates with OpenTelemetry tracing, Prometheus metrics, and performance logging.
     
     Args:
         fallback_func: NumPy fallback function to use if Numba fails
         function_name: Name for logging purposes
+        operation_name: Operation category (e.g., "image_processing")
         silent: If True, suppress warnings (only log errors)
+        enable_tracing: Enable OpenTelemetry tracing
+        enable_metrics: Enable Prometheus metrics
+        enable_perf_logging: Enable performance logging to timestamped files
     
     Usage:
-        @numba_safe_wrapper(fallback_func=numpy_version, function_name="fast_normalize")
+        @numba_safe_wrapper(
+            fallback_func=numpy_version,
+            function_name="fast_normalize",
+            operation_name="image_processing",
+            enable_tracing=True,
+            enable_metrics=True,
+            enable_perf_logging=True
+        )
         def numba_normalize(arr):
             # Numba optimized code
             pass
     """
+    # Initialize observability components
+    tracer = get_tracer() if (TRACING_AVAILABLE and enable_tracing) else None
+    metrics = get_metrics_collector() if (METRICS_AVAILABLE and enable_metrics) else None
+    perf_logger = get_performance_logger() if (PERF_LOGGING_AVAILABLE and enable_perf_logging) else None
+    
     def decorator(numba_func: Callable) -> Callable:
         @functools.wraps(numba_func)
         def wrapper(*args, **kwargs) -> Any:
+            execution_start = time.time()
+            array_size = None
+            
             try:
-                # Attempt Numba execution
-                result = numba_func(*args, **kwargs)
-                return result
+                # Extract array size if first arg is numpy array
+                if len(args) > 0 and isinstance(args[0], np.ndarray):
+                    array_size = args[0].size
                 
+                # Tracing context
+                if tracer and enable_tracing:
+                    with tracer.start_span(
+                        f"{operation_name}.{function_name}",
+                        attributes={"array_size": array_size}
+                    ) as span:
+                        try:
+                            result = numba_func(*args, **kwargs)
+                            execution_time = (time.time() - execution_start) * 1000
+                            
+                            # Record success
+                            _record_success(
+                                tracer, metrics, perf_logger,
+                                operation_name, function_name,
+                                execution_time, array_size
+                            )
+                            return result
+                        except Exception as e:
+                            execution_time = (time.time() - execution_start) * 1000
+                            span.record_exception(e)
+                            span.set_attribute("error", True)
+                            raise
+                else:
+                    # Without tracing
+                    result = numba_func(*args, **kwargs)
+                    execution_time = (time.time() - execution_start) * 1000
+                    
+                    _record_success(
+                        tracer, metrics, perf_logger,
+                        operation_name, function_name,
+                        execution_time, array_size
+                    )
+                    return result
+            
             except Exception as e:
+                execution_time = (time.time() - execution_start) * 1000
                 error_type = type(e).__name__
                 error_msg = str(e)
                 
@@ -60,6 +142,28 @@ def numba_safe_wrapper(fallback_func: Optional[Callable] = None,
                     f"{error_type}: {error_msg}"
                 )
                 logger.debug(f"Traceback:\n{traceback.format_exc()}")
+                
+                # Record error metric
+                if metrics and enable_metrics:
+                    metrics.record_execution(
+                        operation=operation_name,
+                        function=function_name,
+                        execution_time=execution_time / 1000,  # Convert to seconds
+                        array_size=array_size,
+                        success=False,
+                        error_type=error_type
+                    )
+                
+                # Log error to performance logger
+                if perf_logger and enable_perf_logging:
+                    perf_logger.log_error(
+                        operation=operation_name,
+                        function=function_name,
+                        execution_time_ms=execution_time,
+                        error_type=error_type,
+                        error_message=error_msg,
+                        metadata={"array_size": array_size}
+                    )
                 
                 # Attempt fallback if available
                 if fallback_func is not None:
@@ -72,14 +176,55 @@ def numba_safe_wrapper(fallback_func: Optional[Callable] = None,
                         logger.warning(warning_msg)
                     
                     try:
+                        fallback_start = time.time()
                         result = fallback_func(*args, **kwargs)
+                        fallback_time = (time.time() - fallback_start) * 1000
+                        
                         logger.info(f"NumPy fallback successful for '{function_name}'")
+                        
+                        # Record fallback
+                        if metrics and enable_metrics:
+                            metrics.record_fallback(
+                                operation=operation_name,
+                                function=function_name,
+                                reason=f"Numba_{error_type}"
+                            )
+                        
+                        if perf_logger and enable_perf_logging:
+                            perf_logger.log_fallback(
+                                operation=operation_name,
+                                function=function_name,
+                                execution_time_ms=fallback_time,
+                                reason=f"Numba_{error_type}",
+                                metadata={"array_size": array_size}
+                            )
+                        
+                        if tracer and enable_tracing:
+                            tracer.record_fallback(
+                                operation_name=operation_name,
+                                function_name=function_name,
+                                reason=error_type
+                            )
+                        
                         return result
                     except Exception as fallback_error:
+                        fallback_time = (time.time() - fallback_start) * 1000
+                        
                         logger.error(
                             f"NumPy fallback also failed for '{function_name}': "
                             f"{type(fallback_error).__name__}: {fallback_error}"
                         )
+                        
+                        # Record fallback error
+                        if perf_logger and enable_perf_logging:
+                            perf_logger.log_error(
+                                operation=operation_name,
+                                function=function_name,
+                                execution_time_ms=fallback_time,
+                                error_type=f"FallbackError_{type(fallback_error).__name__}",
+                                error_message=str(fallback_error)
+                            )
+                        
                         raise NumbaExecutionError(
                             f"Both Numba and NumPy fallback failed for '{function_name}'"
                         ) from fallback_error
@@ -91,6 +236,30 @@ def numba_safe_wrapper(fallback_func: Optional[Callable] = None,
         
         return wrapper
     return decorator
+
+
+def _record_success(tracer, metrics, perf_logger, operation_name, function_name, 
+                   execution_time, array_size):
+    """Helper to record successful execution across all observability systems."""
+    # Record metrics
+    if metrics:
+        metrics.record_execution(
+            operation=operation_name,
+            function=function_name,
+            execution_time=execution_time / 1000,  # Convert to seconds
+            array_size=array_size,
+            success=True
+        )
+    
+    # Log to performance logger
+    if perf_logger:
+        perf_logger.log_execution(
+            operation=operation_name,
+            function=function_name,
+            execution_time_ms=execution_time,
+            array_size=array_size,
+            metadata={"implementation": "numba"}
+        )
 
 
 def validate_numpy_array(arr: Any, 
