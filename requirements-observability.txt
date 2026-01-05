@@ -1,5 +1,5 @@
 # Optional observability dependencies for ComfyUI
-# Install with: pip install -r requirements-observability.txt
+# Install with: uv pip install -r requirements-observability.txt
 
 # OpenTelemetry - distributed tracing
 opentelemetry-api>=1.21.0

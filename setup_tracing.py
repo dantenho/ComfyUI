@@ -39,7 +39,7 @@ def setup_tracing():
             print("   → Jaeger UI: http://localhost:16686")
         else:
             print("   ⚠ OpenTelemetry not installed")
-            print("   → Install: pip install -r requirements-observability.txt")
+            print("   → Install: uv pip install -r requirements-observability.txt")
     except Exception as e:
         logger.warning(f"Tracing initialization failed: {e}")
         print(f"   ⚠ {e}")
@@ -56,7 +56,7 @@ def setup_tracing():
             print("   → Metrics Endpoint: http://localhost:8000/metrics")
         else:
             print("   ⚠ Prometheus client not installed")
-            print("   → Install: pip install -r requirements-observability.txt")
+            print("   → Install: uv pip install -r requirements-observability.txt")
     except Exception as e:
         logger.warning(f"Metrics initialization failed: {e}")
         print(f"   ⚠ {e}")

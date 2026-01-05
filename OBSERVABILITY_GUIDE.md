@@ -11,9 +11,12 @@ ComfyUI now includes comprehensive observability with:
 
 ```bash
 # Install optional observability dependencies
-pip install opentelemetry-api opentelemetry-sdk
-pip install opentelemetry-exporter-jaeger
-pip install prometheus-client
+uv pip install opentelemetry-api opentelemetry-sdk
+uv pip install opentelemetry-exporter-jaeger
+uv pip install prometheus-client
+
+# Or install all at once
+uv pip install -r requirements-observability.txt
 ```
 
 ## Components
@@ -347,7 +350,7 @@ export COMFYUI_PERF_LOG_LEVEL=INFO
 ### OpenTelemetry not available
 ```
 Warning: OpenTelemetry not available, tracing disabled
-Solution: pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-jaeger
+Solution: uv pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-jaeger
 ```
 
 ### Prometheus metrics not updating

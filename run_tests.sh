@@ -29,7 +29,7 @@ if python3 -c "import numba" 2>/dev/null; then
 else
     echo -e "  ${YELLOW}⚠${NC} Numba not installed"
     echo "     Installing numba>=0.63.0..."
-    pip3 install "numba>=0.63.0" --quiet --user
+    uv pip install "numba>=0.63.0" --quiet
     echo -e "  ${GREEN}✓${NC} Numba installed"
 fi
 
