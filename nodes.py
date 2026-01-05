@@ -1626,9 +1626,9 @@ class SaveImage:
                     i = i / 255.0
                     img = Image.fromarray(denormalize_image_array(i.astype(np.float32), scale=255.0))
                 else:
-                    img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+                    img = Image.fromarray(np.clip(np.asarray(i, copy=False), 0, 255).astype(np.uint8, copy=False))
             else:
-                img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+                img = Image.fromarray(np.clip(np.asarray(i, copy=False), 0, 255).astype(np.uint8, copy=False))
             metadata = None
             if not args.disable_metadata:
                 metadata = PngInfo()
@@ -1707,13 +1707,13 @@ class LoadImage:
                 image = normalize_image_array(image_np.astype(np.uint8))
                 image = torch.from_numpy(image)[None,]
             else:
-                image = np.array(image).astype(np.float32) / 255.0
+                image = np.asarray(image, dtype=np.float32, copy=False) / 255.0
                 image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
-                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                mask = np.asarray(i.getchannel('A'), dtype=np.float32, copy=False) / 255.0
                 mask = 1. - torch.from_numpy(mask)
             elif i.mode == 'P' and 'transparency' in i.info:
-                mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
+                mask = np.asarray(i.convert('RGBA').getchannel('A'), dtype=np.float32, copy=False) / 255.0
                 mask = 1. - torch.from_numpy(mask)
             else:
                 mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
@@ -1773,7 +1773,7 @@ class LoadImageMask:
         mask = None
         c = channel[0].upper()
         if c in i.getbands():
-            mask = np.array(i.getchannel(c)).astype(np.float32) / 255.0
+            mask = np.asarray(i.getchannel(c), dtype=np.float32, copy=False) / 255.0
             mask = torch.from_numpy(mask)
             if c == 'A':
                 mask = 1. - mask

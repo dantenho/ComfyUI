@@ -734,12 +734,12 @@ class RandomCropImagesNode(ImageProcessingNode):
 
     @classmethod
     def _process(cls, image, width, height, seed):
-        np.random.seed(seed % (2**32 - 1))
+        rng = np.random.default_rng(seed % (2**32 - 1))
         img = tensor_to_pil(image)
         max_left = max(0, img.width - width)
         max_top = max(0, img.height - height)
-        left = np.random.randint(0, max_left + 1) if max_left > 0 else 0
-        top = np.random.randint(0, max_top + 1) if max_top > 0 else 0
+        left = rng.integers(0, max_left + 1) if max_left > 0 else 0
+        top = rng.integers(0, max_top + 1) if max_top > 0 else 0
         right = min(img.width, left + width)
         bottom = min(img.height, top + height)
         img = img.crop((left, top, right, bottom))
