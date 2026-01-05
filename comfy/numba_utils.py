@@ -190,6 +190,58 @@ def linear_interpolate_steps(t_steps, num_steps):
     return result
 
 
+@njit(parallel=True, cache=True)
+def log_linear_interpolate_steps(t_steps, num_steps):
+    """
+    Log-linear interpolation of decreasing time steps.
+
+    Args:
+        t_steps: Original time steps array (assumed positive)
+        num_steps: Number of new steps
+    Returns:
+        Interpolated array matching the original order
+    """
+    n = len(t_steps)
+    xs = np.linspace(0.0, 1.0, n)
+    new_xs = np.linspace(0.0, 1.0, num_steps)
+
+    result = np.empty(num_steps, dtype=t_steps.dtype)
+
+    # Precompute log of reversed steps to mirror legacy behavior
+    log_rev = np.empty(n, dtype=np.float64)
+    eps = np.finfo(np.float64).tiny
+    for i in range(n):
+        val = t_steps[n - 1 - i]
+        if val < eps:
+            val = eps
+        log_rev[i] = np.log(val)
+
+    for i in prange(num_steps):
+        x = new_xs[i]
+
+        if x <= xs[0]:
+            log_val = log_rev[0]
+        elif x >= xs[-1]:
+            log_val = log_rev[-1]
+        else:
+            idx = np.searchsorted(xs, x)
+            if idx >= n:
+                idx = n - 1
+
+            if idx == 0:
+                log_val = log_rev[0]
+            else:
+                x0, x1 = xs[idx - 1], xs[idx]
+                y0, y1 = log_rev[idx - 1], log_rev[idx]
+                t = (x - x0) / (x1 - x0)
+                log_val = y0 + t * (y1 - y0)
+
+        # Reverse back to original ordering while exponentiating
+        result[num_steps - 1 - i] = np.exp(log_val)
+
+    return result
+
+
 # =============================================================================
 # Array Operations
 # =============================================================================

@@ -4,21 +4,8 @@ import numpy as np
 import torch
 
 from typing_extensions import override
+from comfy.interpolation_utils import loglinear_interp
 from comfy_api.latest import ComfyExtension, io
-
-
-def loglinear_interp(t_steps, num_steps):
-    """
-    Performs log-linear interpolation of a given array of decreasing numbers.
-    """
-    xs = np.linspace(0, 1, len(t_steps))
-    ys = np.log(t_steps[::-1])
-
-    new_xs = np.linspace(0, 1, num_steps)
-    new_ys = np.interp(new_xs, xs, ys)
-
-    interped_ys = np.exp(new_ys)[::-1].copy()
-    return interped_ys
 
 
 NOISE_LEVELS = {"FLUX": [0.9968, 0.9886, 0.9819, 0.975, 0.966, 0.9471, 0.9158, 0.8287, 0.5512, 0.2808, 0.001],

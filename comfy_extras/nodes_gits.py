@@ -2,20 +2,8 @@
 import numpy as np
 import torch
 from typing_extensions import override
+from comfy.interpolation_utils import loglinear_interp
 from comfy_api.latest import ComfyExtension, io
-
-def loglinear_interp(t_steps, num_steps):
-    """
-    Performs log-linear interpolation of a given array of decreasing numbers.
-    """
-    xs = np.linspace(0, 1, len(t_steps))
-    ys = np.log(t_steps[::-1])
-
-    new_xs = np.linspace(0, 1, num_steps)
-    new_ys = np.interp(new_xs, xs, ys)
-
-    interped_ys = np.exp(new_ys)[::-1].copy()
-    return interped_ys
 
 NOISE_LEVELS = {
     0.80: [
