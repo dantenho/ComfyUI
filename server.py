@@ -63,6 +63,15 @@ async def send_socket_catch_exception(function, message):
 # Track deprecated paths that have been warned about to only warn once per file
 _deprecated_paths_warned = set()
 
+# Async publish queue tuning
+DEFAULT_PUBLISH_QUEUE_MAXSIZE = 4096
+DROPPABLE_EVENTS = {
+    "status",
+    BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
+    BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA,
+}
+
+
 @web.middleware
 async def deprecation_warning(request: web.Request, handler):
     """Middleware to warn about deprecated frontend API paths"""
@@ -206,7 +215,8 @@ class PromptServer():
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
-        self.messages = asyncio.Queue()
+        self.messages = asyncio.Queue(maxsize=DEFAULT_PUBLISH_QUEUE_MAXSIZE)
+        self._dropped_publish_messages = 0
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
@@ -1149,9 +1159,58 @@ class PromptServer():
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
+    def _evict_one_droppable_queued_message(self):
+        """Evict a single queued droppable event if present."""
+        buffered_messages = []
+        evicted = False
+
+        while True:
+            try:
+                queued = self.messages.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+            queued_event = queued[0]
+            if not evicted and queued_event in DROPPABLE_EVENTS:
+                evicted = True
+                self.messages.task_done()
+                continue
+
+            buffered_messages.append(queued)
+
+        for queued in buffered_messages:
+            self.messages.put_nowait(queued)
+
+        return evicted
+
+    def _enqueue_message(self, event, data, sid=None):
+        try:
+            self.messages.put_nowait((event, data, sid))
+        except asyncio.QueueFull:
+            self._dropped_publish_messages += 1
+            should_log = self._dropped_publish_messages <= 5 or self._dropped_publish_messages % 100 == 0
+
+            if event not in DROPPABLE_EVENTS and self._evict_one_droppable_queued_message():
+                try:
+                    self.messages.put_nowait((event, data, sid))
+                    if should_log:
+                        logging.warning(
+                            "Publish queue full; evicted one droppable queued message to enqueue critical event '%s'",
+                            event,
+                        )
+                    return
+                except asyncio.QueueFull:
+                    pass
+
+            if should_log:
+                logging.warning(
+                    "Publish queue full; dropped message event '%s' (dropped=%d)",
+                    event,
+                    self._dropped_publish_messages,
+                )
+
     def send_sync(self, event, data, sid=None):
-        self.loop.call_soon_threadsafe(
-            self.messages.put_nowait, (event, data, sid))
+        self.loop.call_soon_threadsafe(self._enqueue_message, event, data, sid)
 
     def queue_updated(self):
         self.send_sync("status", { "status": self.get_queue_info() })
@@ -1159,7 +1218,10 @@ class PromptServer():
     async def publish_loop(self):
         while True:
             msg = await self.messages.get()
-            await self.send(*msg)
+            try:
+                await self.send(*msg)
+            finally:
+                self.messages.task_done()
 
     async def start(self, address, port, verbose=True, call_on_start=None):
         await self.start_multi_address([(address, port)], call_on_start=call_on_start)

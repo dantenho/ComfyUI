@@ -1,12 +1,32 @@
 import numpy as np
 import scipy.ndimage
 import torch
+import importlib
+import importlib.util
 import comfy.utils
 import node_helpers
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, UI
 
 import nodes
+
+NUMBA_FEATHER_MASK_EDGES = None
+_NUMBA_FEATHER_RESOLVED = False
+
+
+def _get_numba_feather_mask_edges():
+    global NUMBA_FEATHER_MASK_EDGES, _NUMBA_FEATHER_RESOLVED
+    if _NUMBA_FEATHER_RESOLVED:
+        return NUMBA_FEATHER_MASK_EDGES
+
+    _NUMBA_FEATHER_RESOLVED = True
+    if not importlib.util.find_spec("numba") or not importlib.util.find_spec("comfy.numba_utils"):
+        return None
+
+    is_numba_available = importlib.import_module("comfy.numba_error_handler").is_numba_available
+    if is_numba_available():
+        NUMBA_FEATHER_MASK_EDGES = importlib.import_module("comfy.numba_utils").feather_mask_edges
+    return NUMBA_FEATHER_MASK_EDGES
 
 def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
     source = source.to(destination.device)
@@ -301,27 +321,28 @@ class FeatherMask(IO.ComfyNode):
     @classmethod
     def execute(cls, mask, left, top, right, bottom) -> IO.NodeOutput:
         output = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).clone()
-
         left = min(left, output.shape[-1])
         right = min(right, output.shape[-1])
         top = min(top, output.shape[-2])
         bottom = min(bottom, output.shape[-2])
 
-        for x in range(left):
-            feather_rate = (x + 1.0) / left
-            output[:, :, x] *= feather_rate
+        numba_feather = _get_numba_feather_mask_edges()
+        if numba_feather is not None and output.device.type == "cpu":
+            feathered = numba_feather(output.numpy().astype(np.float32, copy=False), left, top, right, bottom)
+            return IO.NodeOutput(torch.from_numpy(feathered).to(mask.device, dtype=mask.dtype))
 
-        for x in range(right):
-            feather_rate = (x + 1) / right
-            output[:, :, -x] *= feather_rate
-
-        for y in range(top):
-            feather_rate = (y + 1) / top
-            output[:, y, :] *= feather_rate
-
-        for y in range(bottom):
-            feather_rate = (y + 1) / bottom
-            output[:, -y, :] *= feather_rate
+        if left > 0:
+            left_factors = (torch.arange(left, device=output.device, dtype=output.dtype) + 1.0) / left
+            output[:, :, :left] *= left_factors.view(1, 1, left)
+        if right > 0:
+            right_factors = (torch.arange(right, device=output.device, dtype=output.dtype) + 1.0) / right
+            output[:, :, -right:] *= right_factors.flip(0).view(1, 1, right)
+        if top > 0:
+            top_factors = (torch.arange(top, device=output.device, dtype=output.dtype) + 1.0) / top
+            output[:, :top, :] *= top_factors.view(1, top, 1)
+        if bottom > 0:
+            bottom_factors = (torch.arange(bottom, device=output.device, dtype=output.dtype) + 1.0) / bottom
+            output[:, -bottom:, :] *= bottom_factors.flip(0).view(1, bottom, 1)
 
         return IO.NodeOutput(output)
 
