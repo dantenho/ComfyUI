@@ -16,6 +16,7 @@ prometheus-client>=0.19.0
 # opentelemetry-exporter-datadog>=0.42b0  # For Datadog
 # opentelemetry-exporter-otlp>=0.42b0  # For OTLP collectors
 
-# Optional: For performance analysis
-pandas>=2.0.0
+# Optional: For performance analysis (columnar)
+polars>=1.30.0
+pyarrow>=19.0.0
 matplotlib>=3.7.0

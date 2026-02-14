@@ -1,12 +1,12 @@
 # ComfyUI Requirements
-# Python 3.14+ compatible
+# Python 3.14+ compatible (including experimental free-threaded/no-GIL builds)
 # CUDA 13.0/13.1 compatible (requires driver >= 580, compute capability >= 7.5)
 
 comfyui-frontend-package==1.35.9
 comfyui-workflow-templates==0.7.65
 comfyui-embedded-docs==0.3.1
 
-# PyTorch - CUDA 13.x support
+# PyTorch - CUDA 13.1 support
 # Note: CUDA 13.x requires specific PyTorch builds with cu13 suffix
 # Python packages: nvidia-cuda-* (not nvidia-cuda-*-cu12) with layout at site-packages/nvidia/cu13/
 torch
@@ -34,5 +34,13 @@ av>=14.2.0
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
-pydantic~=2.0
+pydantic~=2.12
 pydantic-settings~=2.0
+
+# Async/runtime and columnar data stack
+uvloop>=0.21.0; platform_system != "Windows"
+pyarrow>=19.0.0
+polars>=1.30.0
+
+# Optional CUDA denoiser integration
+nvidia-denoiser>=0.1.6; platform_system == "Linux"

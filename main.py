@@ -339,6 +339,19 @@ def setup_database():
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 
+def configure_asyncio_runtime() -> None:
+    """Configure the asyncio runtime for high-performance environments."""
+    if sys.platform.startswith("win"):
+        return
+
+    try:
+        import uvloop
+
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        logging.info("Using uvloop event loop policy")
+    except Exception as e:
+        logging.debug(f"uvloop not enabled: {e}")
+
 def start_comfyui(asyncio_loop=None):
     """
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
@@ -356,6 +369,8 @@ def start_comfyui(asyncio_loop=None):
             new_updater.update_windows_updater()
         except:
             pass
+
+    configure_asyncio_runtime()
 
     if not asyncio_loop:
         asyncio_loop = asyncio.new_event_loop()
