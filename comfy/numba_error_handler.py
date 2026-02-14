@@ -459,6 +459,11 @@ def check_numba_availability() -> dict:
     return result
 
 
+def is_numba_available() -> bool:
+    """Return True only when Numba imports successfully."""
+    return check_numba_availability()["numba_available"]
+
+
 def log_system_info():
     """Log comprehensive system information for debugging."""
     info = check_numba_availability()

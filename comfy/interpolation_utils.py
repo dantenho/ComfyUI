@@ -6,9 +6,9 @@ import numpy as np
 
 try:
     from comfy.numba_utils import log_linear_interpolate_steps as _log_linear_interpolate_steps
-    from comfy.numba_error_handler import check_numba_availability
+    from comfy.numba_error_handler import is_numba_available
 
-    _NUMBA_AVAILABLE = check_numba_availability()
+    _NUMBA_AVAILABLE = is_numba_available()
 except Exception:
     _NUMBA_AVAILABLE = False
     _log_linear_interpolate_steps = None

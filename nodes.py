@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "co
 # Numba optimization imports
 try:
     from comfy.numba_utils import normalize_image_array, denormalize_image_array
-    from comfy.numba_error_handler import check_numba_availability
-    NUMBA_AVAILABLE = check_numba_availability()
+    from comfy.numba_error_handler import is_numba_available
+    NUMBA_AVAILABLE = is_numba_available()
 except ImportError:
     NUMBA_AVAILABLE = False
 

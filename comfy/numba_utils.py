@@ -277,6 +277,48 @@ def fast_array_min_max(arr):
 
 
 @njit(parallel=True, cache=True, fastmath=True)
+def feather_mask_edges(mask_batch, left, top, right, bottom):
+    """
+    Apply edge feathering to a batch of masks.
+
+    Args:
+        mask_batch: Float array with shape (B, H, W)
+        left, top, right, bottom: Feather widths for each edge
+    Returns:
+        Feathered mask batch with same shape as input.
+    """
+    output = mask_batch.copy()
+    batch, height, width = output.shape
+
+    max_left = min(left, width)
+    max_right = min(right, width)
+    max_top = min(top, height)
+    max_bottom = min(bottom, height)
+
+    if max_left > 0:
+        for x in prange(max_left):
+            feather_rate = (x + 1.0) / max_left
+            output[:, :, x] *= feather_rate
+
+    if max_right > 0:
+        for x in prange(max_right):
+            feather_rate = (x + 1.0) / max_right
+            output[:, :, width - 1 - x] *= feather_rate
+
+    if max_top > 0:
+        for y in prange(max_top):
+            feather_rate = (y + 1.0) / max_top
+            output[:, y, :] *= feather_rate
+
+    if max_bottom > 0:
+        for y in prange(max_bottom):
+            feather_rate = (y + 1.0) / max_bottom
+            output[:, height - 1 - y, :] *= feather_rate
+
+    return output
+
+
+@njit(parallel=True, cache=True, fastmath=True)
 def fast_clip_array(arr, min_val=0.0, max_val=1.0):
     """
     Fast array clipping.

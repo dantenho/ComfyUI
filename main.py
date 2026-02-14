@@ -2,6 +2,7 @@ import comfy.options
 comfy.options.enable_args_parsing()
 
 import os
+import importlib
 import importlib.util
 import folder_paths
 import time
@@ -339,6 +340,18 @@ def setup_database():
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 
+def configure_asyncio_event_loop_policy():
+    """Prefer uvloop when installed and compatible."""
+    if os.name == "nt":
+        return
+    if importlib.util.find_spec("uvloop") is None:
+        return
+
+    uvloop = importlib.import_module("uvloop")
+    if not isinstance(asyncio.get_event_loop_policy(), uvloop.EventLoopPolicy):
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        logging.info("uvloop event loop policy enabled")
+
 def start_comfyui(asyncio_loop=None):
     """
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
@@ -358,6 +371,7 @@ def start_comfyui(asyncio_loop=None):
             pass
 
     if not asyncio_loop:
+        configure_asyncio_event_loop_policy()
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)

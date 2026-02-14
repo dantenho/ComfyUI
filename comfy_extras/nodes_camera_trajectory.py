@@ -10,8 +10,8 @@ from comfy_api.latest import ComfyExtension, io
 # Numba optimization imports
 try:
     from comfy.numba_utils import combined_rotation_matrix
-    from comfy.numba_error_handler import check_numba_availability
-    NUMBA_AVAILABLE = check_numba_availability()
+    from comfy.numba_error_handler import is_numba_available
+    NUMBA_AVAILABLE = is_numba_available()
 except ImportError:
     NUMBA_AVAILABLE = False
 
